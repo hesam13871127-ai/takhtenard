@@ -1,0 +1,24 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+coverage/
+lib/generated_plugin_registrant.dart
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+
+# Temporary tooling output (the generated sounds and icons themselves are
+# committed under assets/ and the platform res/ folders).
+/tmp/
+tool/artifacts/
+*.log

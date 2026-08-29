@@ -1,0 +1,58 @@
+name: takhtenard
+description: >-
+  تخته نرد — Persian Traditional Backgammon (Takhteh Nard).
+  A complete, offline, premium implementation of the traditional Iranian
+  backgammon rules with AI opponents and local two-player mode.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State management (Riverpod 2.x).
+  flutter_riverpod: ^2.5.1
+
+  # Local, offline persistence for settings and game save.
+  shared_preferences: ^2.3.2
+
+  # Offline bundled sound effects.
+  audioplayers: ^6.1.0
+
+  # Declarative micro-animations.
+  flutter_animate: ^4.5.2
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/sounds/
+
+  fonts:
+    - family: Vazirmatn
+      fonts:
+        - asset: assets/fonts/Vazirmatn-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Vazirmatn-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Vazirmatn-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Vazirmatn-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Vazirmatn-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Vazirmatn-ExtraBold.ttf
+          weight: 800

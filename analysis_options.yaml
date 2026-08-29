@@ -1,0 +1,21 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - 'android/**'
+    - 'ios/**'
+    - 'tool/**'
+
+linter:
+  rules:
+    # Keep the code base tight and production-quality.
+    prefer_single_quotes: true
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    always_declare_return_types: true
+    unnecessary_string_interpolations: true
+    avoid_print: true
+    require_trailing_commas: true
+    unnecessary_this: true
