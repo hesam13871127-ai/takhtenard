@@ -205,8 +205,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       body: AppBackground(
         showParticles: false,
         child: SafeArea(
-          child: OrientationBuilder(
-            builder: (context, orientation) {
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isLandscape = constraints.maxWidth > constraints.maxHeight;
               final board = _buildBoard(context, ui);
               final hudTop = _PlayerPanel(
                 player: Player.black,
@@ -228,7 +229,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 ],
               );
 
-              if (orientation == Orientation.landscape) {
+              if (isLandscape) {
+                final sidebarWidth = (constraints.maxWidth * 0.36)
+                    .clamp(180.0, 300.0)
+                    .toDouble();
                 return Row(
                   children: [
                     Expanded(
@@ -238,7 +242,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       ),
                     ),
                     SizedBox(
-                      width: 280,
+                      width: sidebarWidth,
                       child: Column(
                         children: [
                           hudTop,
@@ -254,13 +258,31 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   ],
                 );
               }
+              if (constraints.maxHeight < 560) {
+                return SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      hudTop,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: board,
+                      ),
+                      controls,
+                      hudBottom,
+                    ],
+                  ),
+                );
+              }
               return Column(
                 children: [
                   hudTop,
-                  Expanded(child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: board,
-                  )),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: board,
+                    ),
+                  ),
                   controls,
                   hudBottom,
                 ],
@@ -592,45 +614,72 @@ class _ControlsBar extends ConsumerWidget {
       center = const SizedBox.shrink();
     }
 
+    final actionButtons = <Widget>[
+      LuxuryIconButton(
+        icon: Icons.undo,
+        tooltip: AppStrings.undo,
+        enabled: canUndo,
+        onPressed: controller.undo,
+      ),
+      LuxuryIconButton(
+        icon: Icons.pause,
+        tooltip: AppStrings.menu,
+        onPressed: () => _openPauseMenu(context, ref),
+      ),
+      LuxuryIconButton(
+        icon: settings.soundOn ? Icons.volume_up : Icons.volume_off,
+        tooltip: AppStrings.soundSettings,
+        onPressed: () {
+          ref
+              .read(settingsProvider.notifier)
+              .setSoundOn(!settings.soundOn);
+          sound.enabled = !settings.soundOn;
+        },
+      ),
+      if (isLocal)
+        LuxuryIconButton(
+          icon: Icons.screen_rotation_alt_outlined,
+          tooltip: AppStrings.flipBoard,
+          onPressed: controller.toggleManualFlip,
+        ),
+    ];
+
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.fromLTRB(10, 2, 10, 8),
-      child: Row(
-        children: [
-          LuxuryIconButton(
-            icon: Icons.undo,
-            tooltip: AppStrings.undo,
-            enabled: canUndo,
-            onPressed: controller.undo,
-          ),
-          const SizedBox(width: 6),
-          LuxuryIconButton(
-            icon: Icons.pause,
-            tooltip: AppStrings.menu,
-            onPressed: () => _openPauseMenu(context, ref),
-          ),
-          const SizedBox(width: 6),
-          LuxuryIconButton(
-            icon: settings.soundOn ? Icons.volume_up : Icons.volume_off,
-            tooltip: AppStrings.soundSettings,
-            onPressed: () {
-              ref
-                  .read(settingsProvider.notifier)
-                  .setSoundOn(!settings.soundOn);
-              sound.enabled = !settings.soundOn;
-            },
-          ),
-          if (isLocal) ...[
-            const SizedBox(width: 6),
-            LuxuryIconButton(
-              icon: Icons.screen_rotation_alt_outlined,
-              tooltip: AppStrings.flipBoard,
-              onPressed: controller.toggleManualFlip,
-            ),
-          ],
-          const SizedBox(width: 12),
-          Expanded(child: Center(child: center)),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 380) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: actionButtons,
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: center,
+                  ),
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              for (var i = 0; i < actionButtons.length; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                actionButtons[i],
+              ],
+              const SizedBox(width: 12),
+              Expanded(child: Center(child: center)),
+            ],
+          );
+        },
       ),
     );
   }
