@@ -21,8 +21,8 @@ class GameTimings {
   const GameTimings({
     this.diceRollAnimation = const Duration(milliseconds: 780),
     this.openingRollAnimation = const Duration(milliseconds: 950),
-    this.openingTiePause = const Duration(milliseconds: 1200),
-    this.openingDecidedPause = const Duration(milliseconds: 1150),
+    this.openingTiePause = const Duration(milliseconds: 2500),
+    this.openingDecidedPause = const Duration(milliseconds: 3000),
     this.moveSpacing = const Duration(milliseconds: 430),
     this.afterMovePause = const Duration(milliseconds: 680),
     this.noMoveBanner = const Duration(milliseconds: 1250),
@@ -149,6 +149,7 @@ class GameUiState {
     this.diceRolling = false,
     this.aiThinking = false,
     this.openingRolling = false,
+    this.openingResultPending = false,
     this.openingWhiteDie,
     this.openingBlackDie,
     this.banner,
@@ -177,6 +178,9 @@ class GameUiState {
   /// Opening roll animation in progress.
   final bool openingRolling;
 
+  /// The latest opening result is being held on screen before the next roll.
+  final bool openingResultPending;
+
   final int? openingWhiteDie;
   final int? openingBlackDie;
 
@@ -199,6 +203,7 @@ class GameUiState {
     bool? diceRolling,
     bool? aiThinking,
     bool? openingRolling,
+    bool? openingResultPending,
     Object? openingWhiteDie = _sentinel,
     Object? openingBlackDie = _sentinel,
     Object? banner = _sentinel,
@@ -217,6 +222,8 @@ class GameUiState {
         diceRolling: diceRolling ?? this.diceRolling,
         aiThinking: aiThinking ?? this.aiThinking,
         openingRolling: openingRolling ?? this.openingRolling,
+        openingResultPending:
+            openingResultPending ?? this.openingResultPending,
         openingWhiteDie: openingWhiteDie == _sentinel
             ? this.openingWhiteDie
             : openingWhiteDie as int?,
@@ -329,12 +336,14 @@ class GameController extends Notifier<GameUiState> {
     final game = state.game;
     if (game.phase != GamePhase.openingRoll ||
         state.openingRolling ||
+        state.openingResultPending ||
         state.paused) {
       return;
     }
     final myEpoch = _epoch;
     state = state.copyWith(
       openingRolling: true,
+      openingResultPending: false,
       openingWhiteDie: null,
       openingBlackDie: null,
     );
@@ -348,6 +357,7 @@ class GameController extends Notifier<GameUiState> {
     final outcome = game.rollOpening(whiteDie, blackDie);
     state = state.copyWith(
       openingRolling: false,
+      openingResultPending: true,
       openingWhiteDie: whiteDie,
       openingBlackDie: blackDie,
       revision: state.revision + 1,
@@ -363,6 +373,7 @@ class GameController extends Notifier<GameUiState> {
       _showBanner(AppStrings.openingTie);
       await Future<void>.delayed(_timings.openingTiePause);
       if (_epoch != myEpoch) return;
+      state = state.copyWith(openingResultPending: false);
       await rollOpening();
       return;
     }
@@ -370,6 +381,7 @@ class GameController extends Notifier<GameUiState> {
     // The starter now rolls both dice again (traditional Iranian style).
     await Future<void>.delayed(_timings.openingDecidedPause);
     if (_epoch != myEpoch) return;
+    state = state.copyWith(openingResultPending: false);
     await rollDice(auto: true);
     if (_epoch != myEpoch) return;
     if (state.aiOnTurn && state.game.phase == GamePhase.awaitingMove) {
@@ -385,13 +397,19 @@ class GameController extends Notifier<GameUiState> {
     final game = state.game;
     if (game.phase != GamePhase.awaitingRoll ||
         state.diceRolling ||
-        state.paused) {
+        state.paused ||
+        (!auto && state.openingResultPending)) {
       return;
     }
     if (!auto && state.aiOnTurn) return; // The AI rolls its own dice.
 
     final myEpoch = _epoch;
-    state = state.copyWith(diceRolling: true, selectedFrom: null, banner: null);
+    state = state.copyWith(
+      diceRolling: true,
+      openingResultPending: false,
+      selectedFrom: null,
+      banner: null,
+    );
 
     await _sound.play(SoundEffect.diceRoll);
     await Future<void>.delayed(_timings.diceRollAnimation);
@@ -432,13 +450,19 @@ class GameController extends Notifier<GameUiState> {
     if (from != null) _sound.play(SoundEffect.click);
   }
 
-  /// Tries to play the move the user tapped or dragged: [from] -> [to].
-  /// Illegal pairs simply do nothing — illegal moves are impossible.
+  /// Plays the legal one-or-more-die path the user tapped or dragged:
+  /// [from] -> [to]. Illegal destinations simply do nothing.
   void playMove(int from, int to) {
     if (state.game.phase != GamePhase.awaitingMove || state.aiOnTurn) return;
-    final move = state.legal.resolve(from, to);
-    if (move == null) return;
-    _applyMove(move);
+    final path = state.legal.pathTo(from, to);
+    if (path == null) return;
+    for (final move in path) {
+      if (state.game.phase != GamePhase.awaitingMove ||
+          !state.legal.firstMoves.contains(move)) {
+        return;
+      }
+      _applyMove(move);
+    }
   }
 
   /// Undoes the last move of the current (human) turn.
@@ -561,7 +585,12 @@ class GameController extends Notifier<GameUiState> {
   /// Drives the computer's turn: rolls, thinks (off the UI isolate), and
   /// applies the chosen moves one by one with human-like pacing.
   Future<void> _maybeRunAi({Duration? afterDelay}) async {
-    if (_aiBusy || !state.aiOnTurn || state.paused) return;
+    if (_aiBusy ||
+        !state.aiOnTurn ||
+        state.paused ||
+        state.openingResultPending) {
+      return;
+    }
     final myEpoch = _epoch;
     bool active() => myEpoch == _epoch;
     _aiBusy = true;

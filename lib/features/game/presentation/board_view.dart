@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/board_themes.dart';
+import '../../../core/utils/persian_digits.dart';
 import '../application/game_controller.dart';
 import '../domain/engine/takhteh_game.dart';
 import '../domain/models/game_config.dart';
@@ -17,6 +18,8 @@ import 'board_geometry.dart';
 import 'board_painter.dart';
 import 'widgets/checker.dart';
 import 'widgets/dice.dart';
+
+const int _maxVisibleStackCheckers = 5;
 
 /// One movable checker on the board, kept as a stable identity across state
 /// changes so Flutter can animate its position.
@@ -292,8 +295,8 @@ class _BoardViewState extends ConsumerState<BoardView> {
                     ),
                   ),
                 ),
-                ..._buildHintDots(ui, geometry, theme),
                 ..._buildCheckers(ui, geometry, theme),
+                ..._buildHintDots(ui, geometry, theme),
                 _buildDiceLayer(ui, geometry),
               ],
             ),
@@ -317,33 +320,40 @@ class _BoardViewState extends ConsumerState<BoardView> {
     final selectable = movable ? ui.legal.selectableFroms : const <int>[];
 
     // Rank tokens per (location, player).
-    final ranks = <String, int>{};
+    final groups = <String, List<_CheckerToken>>{};
     _tokenRanks.clear();
     final sorted = List<_CheckerToken>.from(_tokens)
       ..sort((a, b) => a.order.compareTo(b.order));
     for (final token in sorted) {
       final key = '${token.location}-${token.player.name}';
-      final rank = ranks[key] ?? 0;
-      ranks[key] = rank + 1;
-      _tokenRanks[token.id] = rank;
+      final group = groups.putIfAbsent(key, () => <_CheckerToken>[]);
+      _tokenRanks[token.id] = group.length;
+      group.add(token);
     }
 
     for (final token in sorted) {
-      final isDraggedOrigin =
-          _dragFrom != null && token.location == _dragFrom && token == _topToken(_dragFrom!, _dragPlayer ?? token.player);
+      final key = '${token.location}-${token.player.name}';
+      final group = groups[key]!;
+      final rank = _tokenRanks[token.id] ?? 0;
+      if (_usesCappedStack(token.location) &&
+          group.length > _maxVisibleStackCheckers &&
+          rank >= _maxVisibleStackCheckers - 1) {
+        continue;
+      }
+
+      final isDraggedOrigin = _dragFrom != null &&
+          token.location == _dragFrom &&
+          token == _topToken(_dragFrom!, _dragPlayer ?? token.player);
       Rect rect;
       Widget face;
 
       if (token.location == kBearOffTo) {
-        rect = geometry.borneOffRect(token.player, _tokenRanks[token.id] ?? 0);
+        rect = geometry.borneOffRect(token.player, rank);
         face = _buildSlab(token.player, theme);
       } else {
-        Offset center;
-        if (token.location == kBarFrom) {
-          center = geometry.barCheckerCenter(token.player, _tokenRanks[token.id] ?? 0);
-        } else {
-          center = geometry.checkerCenter(token.location, _tokenRanks[token.id] ?? 0);
-        }
+        final center = token.location == kBarFrom
+            ? geometry.barCheckerCenter(token.player, rank)
+            : geometry.checkerCenter(token.location, rank);
         final d = geometry.checkerDiameter;
         rect = Rect.fromCenter(center: center, width: d, height: d);
 
@@ -408,6 +418,61 @@ class _BoardViewState extends ConsumerState<BoardView> {
       );
     }
 
+    // Represent any excess checkers with a count marker instead of letting
+    // their stack spill into the middle band or the opposing point.
+    for (final group in groups.values) {
+      final first = group.first;
+      if (!_usesCappedStack(first.location) ||
+          group.length <= _maxVisibleStackCheckers) {
+        continue;
+      }
+      final count = group.length -
+          (_dragFrom == first.location && _dragPlayer == first.player ? 1 : 0);
+      if (count < _maxVisibleStackCheckers) continue;
+
+      final index = _maxVisibleStackCheckers - 1;
+      final center = first.location == kBarFrom
+          ? geometry.barCheckerCenter(first.player, index)
+          : geometry.checkerCenter(first.location, index);
+      final badgeSize = geometry.checkerDiameter * 0.82;
+      final isMovable = movable && selectable.contains(first.location);
+      final isSelected = ui.selectedFrom == first.location && isMovable;
+      widgets.add(
+        Positioned(
+          left: center.dx - badgeSize / 2,
+          top: center.dy - badgeSize / 2,
+          width: badgeSize,
+          height: badgeSize,
+          child: IgnorePointer(
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppPalette.gold,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isMovable ? theme.hintColor : AppPalette.goldDark,
+                  width: isSelected ? 2.2 : 1.2,
+                ),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x99000000), blurRadius: 4),
+                ],
+              ),
+              child: Text(
+                PersianDigits.format(count),
+                maxLines: 1,
+                style: TextStyle(
+                  color: AppPalette.darkerBrown,
+                  fontSize: badgeSize * 0.38,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     // Floating checker under the finger while dragging.
     if (_dragFrom != null && _dragPointer != null && _dragPlayer != null) {
       final d = geometry.checkerDiameter;
@@ -436,6 +501,9 @@ class _BoardViewState extends ConsumerState<BoardView> {
 
     return widgets;
   }
+
+  bool _usesCappedStack(int location) =>
+      location == kBarFrom || (location >= 1 && location <= 24);
 
   final Map<int, int> _tokenRanks = {};
 
@@ -472,15 +540,36 @@ class _BoardViewState extends ConsumerState<BoardView> {
     BoardGeometry geometry,
     BoardThemeData theme,
   ) {
-    if (ui.selectedFrom == null) return const <Widget>[];
+    if (ui.game.phase != GamePhase.awaitingMove || ui.aiOnTurn) {
+      return const <Widget>[];
+    }
+
+    final pathsByDestination = <int, List<SingleMove>>{};
+    final hitDestinations = <int>{};
+    final selectedFrom = ui.selectedFrom;
+    if (selectedFrom == null) {
+      for (final move in ui.legal.firstMoves) {
+        pathsByDestination.putIfAbsent(move.to, () => [move]);
+        if (move.hits) hitDestinations.add(move.to);
+      }
+    } else {
+      for (final path in ui.legal.movePathsFrom(selectedFrom)) {
+        final destination = path.last.to;
+        final current = pathsByDestination[destination];
+        if (current == null || path.length < current.length) {
+          pathsByDestination[destination] = path;
+        }
+        if (path.last.hits) hitDestinations.add(destination);
+      }
+    }
+
     final widgets = <Widget>[];
     final d = geometry.checkerDiameter;
 
-    for (final destination in ui.destinations) {
-      // Blot destination? Show an inviting "hit" ring.
-      final isHit = ui.legal
-          .firstMoves
-          .any((m) => m.from == ui.selectedFrom && m.to == destination && m.hits);
+    for (final entry in pathsByDestination.entries) {
+      final destination = entry.key;
+      final pathLength = entry.value.length;
+      final isHit = hitDestinations.contains(destination);
       final color = isHit ? AppPalette.rubyAccent : theme.hintColor;
 
       if (destination == kBearOffTo) {
@@ -513,30 +602,60 @@ class _BoardViewState extends ConsumerState<BoardView> {
             destination,
           ) ==
           1;
-      final index = stackSize == 0 ? 0 : stackSize;
-      final center = geometry.checkerCenter(
-        destination,
-        blotHere ? 1 : index,
-      );
+      final index = blotHere
+          ? 1
+          : (stackSize < _maxVisibleStackCheckers - 1
+              ? stackSize
+              : _maxVisibleStackCheckers - 1);
+      final center = geometry.checkerCenter(destination, index);
+      final hasOverflowCount = stackSize > _maxVisibleStackCheckers;
+      final showPathLength = pathLength > 1 && !hasOverflowCount;
+      final markerScale = hasOverflowCount
+          ? 1.12
+          : pathLength > 1
+              ? 0.68
+              : 0.44;
+      final markerSize = d * markerScale;
 
       widgets.add(
         Positioned(
-          left: center.dx - d * 0.22,
-          top: center.dy - d * 0.22,
-          width: d * 0.44,
-          height: d * 0.44,
+          left: center.dx - markerSize / 2,
+          top: center.dy - markerSize / 2,
+          width: markerSize,
+          height: markerSize,
           child: IgnorePointer(
             child: Container(
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [
-                  color,
-                  Color.lerp(color, Colors.black, 0.35)!,
-                ]),
+                color: hasOverflowCount ? color.withAlpha(35) : null,
+                gradient: hasOverflowCount
+                    ? null
+                    : RadialGradient(colors: [
+                        color,
+                        Color.lerp(color, Colors.black, 0.35)!,
+                      ]),
+                border: hasOverflowCount || pathLength > 1
+                    ? Border.all(
+                        color: hasOverflowCount ? color : AppPalette.ivory,
+                        width: hasOverflowCount ? 2.2 : 1.2,
+                      )
+                    : null,
                 boxShadow: [
                   BoxShadow(color: color, blurRadius: d * 0.3),
                 ],
               ),
+              child: showPathLength
+                  ? Text(
+                      PersianDigits.format(pathLength),
+                      style: TextStyle(
+                        color: AppPalette.darkerBrown,
+                        fontSize: markerSize * 0.46,
+                        fontWeight: FontWeight.w900,
+                        height: 1,
+                      ),
+                    )
+                  : null,
             )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .scale(
@@ -557,8 +676,11 @@ class _BoardViewState extends ConsumerState<BoardView> {
   Widget _buildDiceLayer(GameUiState ui, BoardGeometry geometry) {
     final game = ui.game;
 
-    // Opening roll: one die per player with color-coded frames.
-    if (game.phase == GamePhase.openingRoll) {
+    final showOpeningResult =
+        game.phase == GamePhase.awaitingRoll && ui.openingResultPending;
+
+    // Opening roll: show both dice through the winner announcement pause.
+    if (game.phase == GamePhase.openingRoll || showOpeningResult) {
       final centers = geometry.diceCenters();
       final values = [
         ui.openingWhiteDie ?? 1,
@@ -648,7 +770,9 @@ class _BoardViewState extends ConsumerState<BoardView> {
   void _handleTap(Offset local, GameUiState ui, BoardGeometry geometry) {
     final controller = ref.read(gameControllerProvider.notifier);
 
-    if (ui.game.phase == GamePhase.openingRoll && !ui.openingRolling) {
+    if (ui.game.phase == GamePhase.openingRoll &&
+        !ui.openingRolling &&
+        !ui.openingResultPending) {
       controller.rollOpening();
       return;
     }
@@ -676,8 +800,8 @@ class _BoardViewState extends ConsumerState<BoardView> {
       return;
     }
 
-    final move = ui.legal.resolve(ui.selectedFrom!, location);
-    if (move != null) {
+    final path = ui.legal.pathTo(ui.selectedFrom!, location);
+    if (path != null) {
       controller.playMove(ui.selectedFrom!, location);
       return;
     }

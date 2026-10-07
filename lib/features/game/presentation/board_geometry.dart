@@ -206,7 +206,7 @@ class BoardGeometry {
       column = 6 + (afterBar / pointWidth).floor() + 1;
     }
     if (column > 12) return const BoardHit.outside();
-    final isBottom = p.dy > height / 2;
+    final isBottom = p.dy >= height / 2;
     final point = isBottom ? 13 - column : column + 12;
     return BoardHit.point(point);
   }

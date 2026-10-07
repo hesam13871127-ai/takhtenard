@@ -18,6 +18,7 @@ import '../domain/models/player.dart';
 import '../domain/engine/takhteh_game.dart';
 import '../../result/presentation/result_screen.dart';
 import 'board_view.dart';
+import 'game_tutorial_dialog.dart';
 
 /// The main game screen: HUD, board, controls, overlays and menus.
 class GameScreen extends ConsumerStatefulWidget {
@@ -35,9 +36,13 @@ class GameScreen extends ConsumerStatefulWidget {
 }
 
 class _GameScreenState extends ConsumerState<GameScreen> {
+  static const _tutorialSeenKey = 'tutorial.gameplaySeen';
+
   String? _flashText;
   int _flashKey = 0;
   Timer? _flashTimer;
+  bool _tutorialCheckStarted = false;
+  bool _showGameplayHints = false;
 
   @override
   void initState() {
@@ -45,12 +50,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final controller = ref.read(gameControllerProvider.notifier);
     if (widget.restore) {
       controller.restoreSavedGame();
-    } else if (widget.newConfig != null) {
-      // controller.startGame(widget.newConfig!);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-   controller.startGame(widget.newConfig!);
-  });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!widget.restore && widget.newConfig != null) {
+        controller.startGame(widget.newConfig!);
+      }
+      unawaited(_showTutorialIfNeeded());
+    });
 
     // React to game events with banners and navigation.
     ref.listenManual(gameControllerProvider, (previous, next) {
@@ -74,6 +81,23 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     super.dispose();
   }
 
+  Future<void> _showTutorialIfNeeded() async {
+    if (_tutorialCheckStarted) return;
+    _tutorialCheckStarted = true;
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (prefs.getBool(_tutorialSeenKey) ?? false) return;
+
+    final completed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const GameTutorialDialog(),
+    );
+    await prefs.setBool(_tutorialSeenKey, true);
+    if (mounted && completed == true) {
+      setState(() => _showGameplayHints = true);
+    }
+  }
+
   String _turnBannerText(GameUiState ui) {
     if (ui.config.mode == GameMode.vsAi) {
       return ui.aiOnTurn ? AppStrings.opponentTurn : AppStrings.yourTurn;
@@ -83,6 +107,62 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   String _playerName(GameUiState ui, Player player) {
     return player == Player.white ? ui.config.whiteName : ui.config.blackName;
+  }
+
+  String? _tutorialHintFor(GameUiState ui) {
+    if (ui.openingResultPending) return null;
+    if (ui.game.phase == GamePhase.openingRoll) {
+      return ui.openingRolling
+          ? AppStrings.tutorialHintRolling
+          : AppStrings.tutorialHintOpening;
+    }
+    if (ui.diceRolling) return AppStrings.tutorialHintRolling;
+    if (ui.aiOnTurn) return AppStrings.tutorialHintWait;
+    if (ui.game.phase == GamePhase.awaitingRoll) {
+      return AppStrings.tutorialHintRoll;
+    }
+    if (ui.game.phase == GamePhase.awaitingMove) {
+      return ui.selectedFrom == null
+          ? AppStrings.tutorialHintSelect
+          : AppStrings.tutorialHintDestination;
+    }
+    return null;
+  }
+
+  Widget _buildTutorialHint(String text) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 2, 12, 4),
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: const Color(0xCC241812),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppPalette.panelBorder),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lightbulb_outline, color: AppPalette.gold, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppPalette.textSecondary,
+                fontSize: 11.5,
+                height: 1.4,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: AppStrings.tutorialHintDismiss,
+            visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() => _showGameplayHints = false),
+            icon: const Icon(Icons.close, color: AppPalette.textFaint, size: 18),
+          ),
+        ],
+      ),
+    );
   }
 
   void _flash(String text) {
@@ -138,7 +218,15 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 name: _playerName(ui, Player.white),
                 ui: ui,
               );
-              final controls = _ControlsBar(ui: ui);
+              final tutorialHint =
+                  _showGameplayHints ? _tutorialHintFor(ui) : null;
+              final controls = Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (tutorialHint != null) _buildTutorialHint(tutorialHint),
+                  _ControlsBar(ui: ui),
+                ],
+              );
 
               if (orientation == Orientation.landscape) {
                 return Row(
@@ -216,6 +304,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   Widget _buildBannerOverlay(GameUiState ui) {
     final banner = ui.banner;
     final flash = _flashText;
+    final action = ui.lastAction;
+    if (ui.game.phase == GamePhase.openingRoll &&
+        action is OpeningRolled &&
+        action.outcome == OpeningOutcome.tie) {
+      return const SizedBox.shrink();
+    }
     final text = flash ?? banner;
     if (text == null) return const SizedBox.shrink();
     return Positioned.fill(
@@ -254,27 +348,52 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     );
   }
 
-  /// Opening roll hint above the dice.
+  /// Opening roll instructions and the starter announcement above the dice.
   Widget _buildOpeningOverlay(GameUiState ui) {
-    if (ui.game.phase != GamePhase.openingRoll) {
+    final action = ui.lastAction;
+    final showingResult = ui.game.phase == GamePhase.awaitingRoll &&
+        ui.openingResultPending;
+    if (ui.game.phase != GamePhase.openingRoll && !showingResult) {
       return const SizedBox.shrink();
     }
+
+    String message;
+    if (showingResult) {
+      final opening = action as OpeningRolled;
+      message = 'سفید (${PersianDigits.format(opening.whiteDie)})  •  '
+          'مشکی (${PersianDigits.format(opening.blackDie)})  —  '
+          '${AppStrings.startsGame(_playerName(ui, ui.game.current))}';
+    } else if (action is OpeningRolled &&
+        action.outcome == OpeningOutcome.tie &&
+        !ui.openingRolling) {
+      message = AppStrings.openingTie;
+    } else {
+      message = AppStrings.openingHint;
+    }
+
     return Positioned(
-      left: 0,
-      right: 0,
+      left: 8,
+      right: 8,
       top: 8,
       child: IgnorePointer(
         child: Center(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: const Color(0xB31E120C),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppPalette.panelBorder),
             ),
-            child: const Text(
-              'تاس آغازین — عدد بزرگ‌تر شروع می‌کند',
-              style: TextStyle(color: AppPalette.ivorySoft, fontSize: 13),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppPalette.ivorySoft,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),
@@ -408,8 +527,10 @@ class _ControlsBar extends ConsumerWidget {
     final canUndo = ui.game.canUndo && !ui.aiOnTurn;
     final canRoll = ui.game.phase == GamePhase.awaitingRoll &&
         !ui.aiOnTurn &&
-        !ui.diceRolling;
-    final isOpening = ui.game.phase == GamePhase.openingRoll;
+        !ui.diceRolling &&
+        !ui.openingResultPending;
+    final isOpening = ui.game.phase == GamePhase.openingRoll &&
+        !ui.openingResultPending;
     final isLocal = ui.config.mode == GameMode.localMultiplayer;
 
     Widget center;
@@ -419,6 +540,12 @@ class _ControlsBar extends ConsumerWidget {
         icon: Icons.casino,
         small: true,
         onPressed: () => controller.rollOpening(),
+      );
+    } else if (ui.openingResultPending) {
+      center = const Text(
+        AppStrings.openingResultPause,
+        textAlign: TextAlign.center,
+        style: TextStyle(color: AppPalette.textSecondary, fontSize: 12),
       );
     } else if (canRoll) {
       center = LuxuryButton(

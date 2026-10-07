@@ -110,6 +110,7 @@ void main() {
       expect(result.maxUsableDice, 1);
       expect(result.firstMoves.any((m) => m.from == 10 && m.to == 8), isTrue);
       expect(result.firstMoves.any((m) => m.from == 5 && m.to == 3), isFalse);
+      expect(result.pathTo(5, 3), isNull);
       expect(result.freezesLifted, isFalse);
     });
 
@@ -132,6 +133,7 @@ void main() {
       expect(result.firstMoves.single.from, 9);
       expect(result.firstMoves.single.to, 5);
       expect(result.firstMoves.single.hits, isTrue);
+      expect(result.pathTo(9, 3), hasLength(2));
 
       // After applying the hit, the lifted move 5 -> 3 must be offered.
       final afterHit = pos.applyMove(result.firstMoves.single);
@@ -163,6 +165,7 @@ void main() {
       );
       expect(hitAndRun, isNotEmpty);
       expect(hitAndRun.any((m) => m.from == 7 && m.to == 5), isTrue);
+      expect(result.pathTo(10, 5), hasLength(2));
     });
 
     test('a stacked pinned point may spare its extra checker', () {
@@ -200,6 +203,52 @@ void main() {
           reason: 'After $move the second die must still be playable.',
         );
       }
+    });
+  });
+
+  group('MoveSearch — direct destination paths', () {
+    test('shows both single-die targets and a legal combined target', () {
+      final result = MoveSearch.search(
+        position: Position.custom(white: {13: 1}, black: {}),
+        player: Player.white,
+        remainingDice: [5, 4],
+      );
+
+      final paths = result.movePathsFrom(13);
+      expect(paths.map((path) => path.last.to), containsAll([8, 9, 4]));
+      final combined = result.pathTo(13, 4)!;
+      expect(combined, hasLength(2));
+      expect(combined.first.from, 13);
+      expect(combined.last.to, 4);
+    });
+
+    test('doubles expose every legal cumulative destination', () {
+      final result = MoveSearch.search(
+        position: Position.custom(white: {15: 1}, black: {}),
+        player: Player.white,
+        remainingDice: [3, 3, 3, 3],
+      );
+
+      final destinations = result
+          .movePathsFrom(15)
+          .map((path) => path.last.to)
+          .toSet();
+      expect(destinations, containsAll([12, 9, 6, 3]));
+      expect(result.pathTo(15, 3), hasLength(4));
+    });
+
+    test('a closed point is not offered as a path destination', () {
+      final result = MoveSearch.search(
+        position: Position.custom(white: {13: 1}, black: {8: 2}),
+        player: Player.white,
+        remainingDice: [5, 4],
+      );
+
+      expect(
+        result.movePathsFrom(13).map((path) => path.last.to),
+        isNot(contains(8)),
+      );
+      expect(result.pathTo(13, 8), isNull);
     });
   });
 }

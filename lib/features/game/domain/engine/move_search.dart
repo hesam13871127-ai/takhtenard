@@ -14,6 +14,7 @@ class MoveSearchResult {
     required this.firstMoves,
     required this.sequences,
     required this.freezesLifted,
+    this.movePaths = const <List<SingleMove>>[],
   });
 
   /// The maximum number of dice that can legally be played.
@@ -27,6 +28,9 @@ class MoveSearchResult {
 
   /// A capped sample of full maximal sequences (for the AI).
   final List<List<SingleMove>> sequences;
+
+  /// Legal same-checker route prefixes, retained independently of the AI cap.
+  final List<List<SingleMove>> movePaths;
 
   /// Whether the traditional "no hit-and-run inside the home board"
   /// restriction had to be lifted for this roll because honoring it would
@@ -52,8 +56,46 @@ class MoveSearchResult {
     return dests.toList()..sort();
   }
 
-  /// Resolves a concrete move for a tap/drag from [from] to [to], or `null`
-  /// when that pair is not playable right now.
+  /// Legal prefixes that move a checker from [from] through one or more dice.
+  /// Each returned path is a prefix of a maximal legal turn sequence, so every
+  /// point in it can be selected as a direct destination without wasting dice.
+  List<List<SingleMove>> movePathsFrom(int from) {
+    final paths = <List<SingleMove>>[];
+    final pathKeys = <String>{};
+
+    void addPath(List<SingleMove> path) {
+      final key = path
+          .map((move) => '${move.from}-${move.to}-${move.die}-${move.hits}')
+          .join('/');
+      if (pathKeys.add(key)) paths.add(List<SingleMove>.from(path));
+    }
+
+    for (final path in movePaths) {
+      if (path.isNotEmpty && path.first.from == from) addPath(path);
+    }
+
+    // firstMoves is complete even when the sample of full sequences is capped.
+    for (final move in firstMoves) {
+      if (move.from == from) addPath([move]);
+    }
+    return paths;
+  }
+
+  /// Resolves a legal one-or-more-die path from [from] to [to], or `null`
+  /// when that destination is not reachable by the selected checker.
+  List<SingleMove>? pathTo(int from, int to) {
+    List<SingleMove>? shortest;
+    for (final path in movePathsFrom(from)) {
+      if (path.last.to == to &&
+          (shortest == null || path.length < shortest.length)) {
+        shortest = path;
+      }
+    }
+    return shortest;
+  }
+
+  /// Resolves a concrete single-die move for a tap/drag from [from] to [to],
+  /// or `null` when that pair is not playable right now.
   SingleMove? resolve(int from, int to) {
     for (final m in firstMoves) {
       if (m.from == from && m.to == to) return m;
@@ -133,6 +175,8 @@ abstract final class MoveSearch {
     // that can still reach the maximum.
     final sequences = <List<SingleMove>>[];
     final firstMoves = <SingleMove>{};
+    final movePaths = <List<SingleMove>>[];
+    final movePathKeys = <String>{};
     _collect(
       position,
       player,
@@ -143,6 +187,8 @@ abstract final class MoveSearch {
       <SingleMove>[],
       sequences,
       firstMoves,
+      movePaths,
+      movePathKeys,
       memo,
     );
 
@@ -161,6 +207,7 @@ abstract final class MoveSearch {
       if (hasLower && hasHigher) {
         resultMoves = resultMoves.where((m) => m.die != lower).toList();
         sequences.removeWhere((s) => s.first.die == lower);
+        movePaths.removeWhere((path) => !resultMoves.contains(path.first));
       }
     }
 
@@ -169,6 +216,7 @@ abstract final class MoveSearch {
       firstMoves: resultMoves,
       sequences: sequences,
       freezesLifted: freezesLifted,
+      movePaths: movePaths,
     );
   }
 
@@ -228,6 +276,8 @@ abstract final class MoveSearch {
     List<SingleMove> path,
     List<List<SingleMove>> sequences,
     Set<SingleMove> firstMoves,
+    List<List<SingleMove>> movePaths,
+    Set<String> movePathKeys,
     Map<String, int> memo,
   ) {
     if (path.length == target) {
@@ -257,6 +307,7 @@ abstract final class MoveSearch {
             1 + _maxDepth(next, player, rest, nextFrozen, honorFreezes, memo);
         if (reachable != target - path.length) continue;
         path.add(move);
+        _recordMovePath(path, honorFreezes, movePaths, movePathKeys);
         _collect(
           next,
           player,
@@ -267,10 +318,38 @@ abstract final class MoveSearch {
           path,
           sequences,
           firstMoves,
+          movePaths,
+          movePathKeys,
           memo,
         );
         path.removeLast();
       }
+    }
+  }
+
+  static void _recordMovePath(
+    List<SingleMove> path,
+    bool honorFreezes,
+    List<List<SingleMove>> movePaths,
+    Set<String> movePathKeys,
+  ) {
+    if (path.isEmpty) return;
+    final prefix = <SingleMove>[];
+    var location = path.first.from;
+    for (final move in path) {
+      if (move.from != location) break;
+      prefix.add(move);
+      final key = prefix
+          .map((step) => '${step.from}-${step.to}-${step.die}-${step.hits}')
+          .join('/');
+      if (movePathKeys.add(key)) {
+        movePaths.add(List<SingleMove>.from(prefix));
+      }
+      if (move.bearsOff ||
+          (honorFreezes && move.hits && move.player.isOwnHome(move.to))) {
+        break;
+      }
+      location = move.to;
     }
   }
 

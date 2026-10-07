@@ -58,6 +58,7 @@ abstract final class AppStrings {
   static const String openingHint =
       'هر بازیکن یک تاس می‌اندازد؛ بازیکنِ بزرگ‌تر بازی را آغاز می‌کند';
   static const String openingTie = 'مساوی! دوباره تاس بریزید';
+  static const String openingResultPause = 'نتیجهٔ تاس آغازین نمایش داده می‌شود…';
   static const String flipBoard = 'چرخش تخته';
   static const String whitePlayer = 'بازیکن سفید';
   static const String blackPlayer = 'بازیکن مشکی';
@@ -65,6 +66,39 @@ abstract final class AppStrings {
   static const String player2 = 'بازیکن ۲';
   static const String you = 'شما';
   static const String computer = 'کامپیوتر';
+
+  // ------------------------------------------------------------ tutorial
+  static const String tutorialTitle = 'آموزش سریع بازی';
+  static const String tutorialSkip = 'رد شدن از آموزش';
+  static const String tutorialPrevious = 'قبلی';
+  static const String tutorialNext = 'بعدی';
+  static const String tutorialStart = 'شروع بازی';
+  static const String tutorialGoalTitle = 'هدف بازی';
+  static const String tutorialGoalBody =
+      'هر ۱۵ مهرهٔ خود را در جهت حرکت به خانهٔ خودی برسانید و سپس از تخته بیرون ببرید؛ هر که زودتر همه را جمع کند برنده است.';
+  static const String tutorialDiceTitle = 'تاس و نوبت';
+  static const String tutorialDiceBody =
+      'در آغاز، هر بازیکن یک تاس می‌اندازد و عدد بزرگ‌تر شروع می‌کند. در نوبت خود دو تاس بریزید؛ هر تاس یک حرکت است و جفت، چهار حرکت می‌دهد.';
+  static const String tutorialMoveTitle = 'حرکت مهره‌ها';
+  static const String tutorialMoveBody =
+      'مهره‌های درخشان قابل انتخاب‌اند. بعد از انتخاب، نقطه‌های روشن مقصدهای مجازند. تاس‌ها را یکی‌یکی بازی کنید یا اگر مسیر قانونی است، مقصد نهایی چند تاس را لمس کنید.';
+  static const String tutorialHitTitle = 'زدن و ورود از مانع';
+  static const String tutorialHitBody =
+      'با فرود روی تک‌مهرهٔ حریف، آن را به مانع می‌فرستید؛ دو مهره یا بیشتر خانه را می‌بندند. اگر مهره‌ای روی مانع دارید، پیش از هر حرکت دیگری باید آن را وارد کنید.';
+  static const String tutorialBearOffTitle = 'جمع‌کردن و قانون ایرانی';
+  static const String tutorialBearOffBody =
+      'وقتی هر ۱۵ مهره در خانهٔ خودی است، آن‌ها را با تاس بیرون ببرید. باید بیشترین تعداد تاس ممکن را بازی کنید. طبق قانون ایرانی، مهره‌ای که در خانهٔ خودی حریف را می‌زند تا پایان نوبت حرکت دوباره ندارد، مگر برای مصرف اجباری تاس باقی‌مانده.';
+  static const String tutorialHintOpening =
+      'برای شروع، «تاس آغازین» را بزنید؛ عدد بزرگ‌تر نوبت اول را می‌گیرد.';
+  static const String tutorialHintRoll =
+      'برای گرفتن تاس‌های نوبت، دکمهٔ «تاس بریز» را لمس کنید.';
+  static const String tutorialHintRolling = 'تاس‌ها در حال چرخش‌اند؛ کمی صبر کنید.';
+  static const String tutorialHintWait = 'نوبت حریف است؛ پس از حرکت او دوباره بازی کنید.';
+  static const String tutorialHintSelect =
+      'مهره‌های درخشان قابل حرکت‌اند؛ یکی را لمس کنید تا مقصدهای مجاز روشن شوند.';
+  static const String tutorialHintDestination =
+      'نقطه‌های روشن مقصدهای قانونی‌اند؛ حلقهٔ عدددار چند تاس را یکجا اجرا می‌کند.';
+  static const String tutorialHintDismiss = 'بستن راهنما';
 
   // -------------------------------------------------------------- result
   static const String normalWin = 'برد ساده';
