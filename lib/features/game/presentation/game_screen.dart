@@ -46,7 +46,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     if (widget.restore) {
       controller.restoreSavedGame();
     } else if (widget.newConfig != null) {
-      controller.startGame(widget.newConfig!);
+      // controller.startGame(widget.newConfig!);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+   controller.startGame(widget.newConfig!);
+  });
     }
 
     // React to game events with banners and navigation.

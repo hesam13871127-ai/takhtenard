@@ -40,7 +40,7 @@ abstract final class AppTheme {
           textStyle: const TextStyle(fontFamily: fontFamily),
         ),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: const Color(0xFF2A1C15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),

@@ -37,7 +37,7 @@ void main() {
     });
 
     test('landing on own checkers is allowed', () {
-      final pos = Position.custom(white: {8: 2, 3: 2});
+      final pos = Position.custom(white: {8: 2, 3: 2}, black: {});
       final moves = Rules.legalMovesForDie(pos, Player.white, 5);
       expect(moves.any((m) => m.from == 8 && m.to == 3), isTrue);
     });
@@ -98,7 +98,7 @@ void main() {
 
   group('Rules.legalMovesForDie — bearing off', () {
     test('exact die bears off the matching point', () {
-      final pos = Position.custom(white: {6: 5, 5: 5, 4: 5});
+      final pos = Position.custom(white: {6: 5, 5: 5, 4: 5}, black: {});
       final moves = Rules.legalMovesForDie(pos, Player.white, 6);
       final bearOffs = moves.where((m) => m.bearsOff).toList();
       expect(bearOffs.length, 1);
@@ -107,7 +107,7 @@ void main() {
     });
 
     test('higher die bears off from the highest occupied point only', () {
-      final pos = Position.custom(white: {4: 1, 3: 5, 1: 9});
+      final pos = Position.custom(white: {4: 1, 3: 5, 1: 9}, black: {});
       // Die 6: exact point 6 is empty; the highest occupied point is 4,
       // so only the checker on 4 may come off.
       final moves = Rules.legalMovesForDie(pos, Player.white, 6);
@@ -117,14 +117,14 @@ void main() {
 
       // When the highest occupied point (5) is greater than the die (3),
       // no checker may bear off: the die is too small everywhere.
-      final pos2 = Position.custom(white: {5: 5, 1: 10});
+      final pos2 = Position.custom(white: {5: 5, 1: 10}, black: {});
       final moves2 = Rules.legalMovesForDie(pos2, Player.white, 3);
       expect(moves2.where((m) => m.bearsOff), isEmpty);
       // A small die still moves normally: 5 -> 2.
       expect(moves2.any((m) => m.from == 5 && m.to == 2), isTrue);
 
       // The lower point (1) may never overshoot while point 5 is occupied.
-      final pos3 = Position.custom(white: {5: 5, 1: 10});
+      final pos3 = Position.custom(white: {5: 5, 1: 10}, black: {});
       final moves3 = Rules.legalMovesForDie(pos3, Player.white, 6);
       final offs3 = moves3.where((m) => m.bearsOff).toList();
       expect(offs3.length, 1);
@@ -132,7 +132,7 @@ void main() {
     });
 
     test('bearing off requires all checkers in the home board', () {
-      final pos = Position.custom(white: {6: 5, 5: 5, 8: 5});
+      final pos = Position.custom(white: {6: 5, 5: 5, 8: 5}, black: {});
       final moves = Rules.legalMovesForDie(pos, Player.white, 6);
       expect(moves.where((m) => m.bearsOff), isEmpty);
       // 6 -> ... with a 6 would leave the board: not allowed, so point 6
@@ -143,7 +143,7 @@ void main() {
     test('checkers on the bar prevent bearing off', () {
       final pos = Position.custom(
         white: {6: 5, 5: 5, 4: 4},
-        whiteBar: 1,
+        whiteBar: 1, black: {},
       );
       final moves = Rules.legalMovesForDie(pos, Player.white, 6);
       // Only the bar entry is offered.
@@ -153,7 +153,7 @@ void main() {
 
     test('black bears off from its own numbering', () {
       // Black home is 19..24; black own point 6 is absolute 19.
-      final pos = Position.custom(black: {19: 5, 20: 5, 21: 5});
+      final pos = Position.custom(black: {19: 5, 20: 5, 21: 5}, white: {});
       final moves = Rules.legalMovesForDie(pos, Player.black, 6);
       final bearOffs = moves.where((m) => m.bearsOff).toList();
       expect(bearOffs.length, 1);
@@ -161,7 +161,7 @@ void main() {
 
       // Overshoot: die 5 from own point 4 (absolute 21) when it is the
       // highest occupied black point.
-      final pos2 = Position.custom(black: {21: 1, 23: 2, 24: 12});
+      final pos2 = Position.custom(black: {21: 1, 23: 2, 24: 12}, white: {});
       final moves2 = Rules.legalMovesForDie(pos2, Player.black, 5);
       final offs = moves2.where((m) => m.bearsOff).toList();
       expect(offs.length, 1);

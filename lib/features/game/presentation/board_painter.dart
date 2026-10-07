@@ -114,7 +114,7 @@ class BoardPainter extends CustomPainter {
           Radius.circular(g.frame * 0.8)),
       Paint()
         ..color = const Color(0x66000000)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.inner, g.frame * 0.5),
+        ..maskFilter =  MaskFilter.blur(BlurStyle.inner, g.frame * 0.5),
     );
   }
 

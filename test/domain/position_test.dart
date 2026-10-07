@@ -58,46 +58,46 @@ void main() {
 
     test('allInHome requires every checker in the home board', () {
       expect(
-        Position.custom(white: {6: 5, 3: 10}).allInHome(Player.white),
+        Position.custom(white: {6: 5, 3: 10}, black: {}).allInHome(Player.white),
         isTrue,
       );
       expect(
-        Position.custom(white: {6: 5, 8: 10}).allInHome(Player.white),
+        Position.custom(white: {6: 5, 8: 10}, black: {}).allInHome(Player.white),
         isFalse,
       );
       expect(
-        Position.custom(white: {6: 5, 3: 10}, whiteBar: 1).allInHome(
+        Position.custom(white: {6: 5, 3: 10}, whiteBar: 1, black: {}).allInHome(
           Player.white,
         ),
         isFalse,
       );
       expect(
-        Position.custom(black: {19: 5, 24: 10}).allInHome(Player.black),
+        Position.custom(black: {19: 5, 24: 10}, white: {}).allInHome(Player.black),
         isTrue,
       );
       expect(
-        Position.custom(black: {19: 5, 17: 10}).allInHome(Player.black),
+        Position.custom(black: {19: 5, 17: 10}, white: {}).allInHome(Player.black),
         isFalse,
       );
     });
 
     test('highestHomePoint finds the farthest occupied home point', () {
       expect(
-        Position.custom(white: {6: 2, 4: 3, 1: 5}).highestHomePoint(
+        Position.custom(white: {6: 2, 4: 3, 1: 5}, black: {}).highestHomePoint(
           Player.white,
         ),
         6,
       );
       expect(
-        Position.custom(white: {4: 3, 1: 5}).highestHomePoint(Player.white),
+        Position.custom(white: {4: 3, 1: 5}, black: {}).highestHomePoint(Player.white),
         4,
       );
       // Black's own numbering: absolute 19 == own point 6.
       expect(
-        Position.custom(black: {19: 2, 22: 3}).highestHomePoint(Player.black),
+        Position.custom(black: {19: 2, 22: 3}, white: {}).highestHomePoint(Player.black),
         6,
       );
-      expect(Position.custom(black: {22: 3}).highestHomePoint(Player.black), 3);
+      expect(Position.custom(black: {22: 3}, white: {}).highestHomePoint(Player.black), 3);
     });
 
     test('pipCount counts bar checkers as 25', () {
@@ -120,7 +120,7 @@ void main() {
       expect(hit.countFor(Player.white, 8), 1);
       expect(hit.blackBar, 1);
 
-      final bearOff = Position.custom(white: {3: 15}).applyMove(
+      final bearOff = Position.custom(white: {3: 15}, black: {}).applyMove(
         const SingleMove(
           player: Player.white,
           from: 3,
