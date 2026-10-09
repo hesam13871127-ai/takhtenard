@@ -47,7 +47,9 @@ class SoundController {
       try {
         await player.setReleaseMode(ReleaseMode.stop);
         if (effect == SoundEffect.diceRoll ||
-            effect == SoundEffect.pieceMove) {
+            effect == SoundEffect.pieceMove ||
+            effect == SoundEffect.click ||
+            effect == SoundEffect.pieceHit) {
           await player.setPlayerMode(PlayerMode.mediaPlayer);
         } else {
           // Low latency mode improves short sound effects on Android.
@@ -77,7 +79,9 @@ class SoundController {
       final player = await _playerFor(effect);
       if (player == null) return;
       if (effect == SoundEffect.diceRoll ||
-          effect == SoundEffect.pieceMove) {
+          effect == SoundEffect.pieceMove ||
+          effect == SoundEffect.click ||
+          effect == SoundEffect.pieceHit) {
         await player.play(
           AssetSource('sounds/${effect.file}'),
           volume: effect.volume,

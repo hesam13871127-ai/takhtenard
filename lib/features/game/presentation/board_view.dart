@@ -687,24 +687,26 @@ class _BoardViewState extends ConsumerState<BoardView> {
     if (game.dice == null && !ui.diceRolling) return const SizedBox.shrink();
 
     final centers = geometry.diceCenters();
-    final values = ui.diceRolling
-        ? const [1, 1]
-        : [game.dice!.first, game.dice!.second];
+    final values = ui.diceRolling ? const [1, 1] : game.dice!.moves;
+    final remaining = ui.diceRolling ? const <int>[] : game.remaining;
+    final displayDieSize =
+        geometry.diceSize * (values.length == 4 ? 0.8 : 1);
 
     final pair = DicePairView(
       size: geometry.diceSize,
       values: values,
+      remaining: remaining,
       rolling: ui.diceRolling,
       ivoryAccent: game.current == Player.white,
     );
 
-    // Center the whole pair (two dice plus their gap) between the two
-    // computed die centers.
-    final pairWidth = geometry.diceSize * 2.42;
+    // Center the dice group between the two computed die centers.
+    final pairWidth =
+        geometry.diceSize * (values.length == 4 ? 3.56 : 2.42);
     final midX = (centers[0].dx + centers[1].dx) / 2;
     return Positioned(
       left: midX - pairWidth / 2,
-      top: centers[0].dy - geometry.diceSize / 2,
+      top: centers[0].dy - displayDieSize / 2,
       child: IgnorePointer(child: pair),
     );
   }

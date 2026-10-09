@@ -122,6 +122,35 @@ void main() {
       expect(game.frozen, {5}); // Hit inside white's home board pins it.
     });
 
+    test('a multi-die path applies an intermediate hit before continuing', () {
+      final game = TakhtehGame(
+        config: config,
+        initialPosition: Position.custom(
+          white: {15: 1},
+          black: {10: 1},
+        ),
+        startingPlayer: Player.white,
+        phase: GamePhase.awaitingRoll,
+      );
+      game.roll(5, 4);
+
+      final path = game.legalMoves.movePathsFrom(15).firstWhere(
+        (candidate) =>
+            candidate.last.to == 6 && candidate.any((move) => move.hits),
+      );
+      expect(path.map((move) => move.die).toList(), [5, 4]);
+
+      game.applyMove(path.first);
+      expect(game.position.blackBar, 1);
+      expect(game.position.countFor(Player.black, 10), 0);
+      expect(game.legalMoves.firstMoves, contains(path.last));
+
+      game.applyMove(path.last);
+      expect(game.position.countFor(Player.white, 6), 1);
+      expect(game.position.blackBar, 1);
+      expect(game.remaining, isEmpty);
+    });
+
     test('turnExhausted fires when no further die can be played', () {
       final game = startedGame(6, 6); // doubles: four moves of six
       expect(game.legalMoves.maxUsableDice, 4);

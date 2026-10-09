@@ -16,12 +16,14 @@ class DicePairView extends StatefulWidget {
     super.key,
     required this.size,
     required this.values,
+    required this.remaining,
     required this.rolling,
     this.ivoryAccent = false,
   });
 
   final double size;
   final List<int> values;
+  final List<int> remaining;
   final bool rolling;
 
   /// Tints the dice slightly ivory (used for the white player's opening die).
@@ -74,6 +76,21 @@ class _DicePairViewState extends State<DicePairView> {
     }
   }
 
+  List<bool> _usedDice() {
+    if (widget.rolling) return List<bool>.filled(_display.length, false);
+    final remainingCounts = <int, int>{};
+    for (final value in widget.remaining) {
+      remainingCounts.update(value, (count) => count + 1, ifAbsent: () => 1);
+    }
+    return List<bool>.generate(_display.length, (index) {
+      final value = _display[index];
+      final count = remainingCounts[value] ?? 0;
+      if (count == 0) return true;
+      remainingCounts[value] = count - 1;
+      return false;
+    });
+  }
+
   @override
   void dispose() {
     _flickerTimer?.cancel();
@@ -82,26 +99,30 @@ class _DicePairViewState extends State<DicePairView> {
 
   @override
   Widget build(BuildContext context) {
-    final isDouble =
-        !widget.rolling && _display.length == 2 && _display[0] == _display[1];
+    final isDouble = !widget.rolling && _display.length == 4;
+    final dieSize = widget.size * (isDouble ? 0.8 : 1);
+    final dieGap = widget.size * (isDouble ? 0.12 : 0.42);
+    final usedDice = _usedDice();
+    final dice = <Widget>[];
+    for (var i = 0; i < _display.length; i++) {
+      if (i > 0) dice.add(SizedBox(width: dieGap));
+      dice.add(
+        AnimatedOpacity(
+          opacity: usedDice[i] ? 0.28 : 1,
+          duration: const Duration(milliseconds: 250),
+          child: _Die(
+            value: _display[i],
+            size: dieSize,
+            tilt: i.isEven ? -0.10 : 0.08,
+            ivoryAccent: widget.ivoryAccent,
+          ),
+        ),
+      );
+    }
 
     Widget pair = Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        _Die(
-          value: _display.isNotEmpty ? _display[0] : 1,
-          size: widget.size,
-          tilt: -0.10,
-          ivoryAccent: widget.ivoryAccent,
-        ),
-        SizedBox(width: widget.size * 0.42),
-        _Die(
-          value: _display.length > 1 ? _display[1] : 1,
-          size: widget.size,
-          tilt: 0.08,
-          ivoryAccent: widget.ivoryAccent,
-        ),
-      ],
+      children: dice,
     );
 
     if (widget.rolling) {
