@@ -46,8 +46,12 @@ class SoundController {
       final player = AudioPlayer(playerId: 'takhtenard_${effect.name}');
       try {
         await player.setReleaseMode(ReleaseMode.stop);
-        // Low latency mode improves short sound effects on Android.
-        await player.setPlayerMode(PlayerMode.lowLatency);
+        if (effect == SoundEffect.diceRoll) {
+          await player.setPlayerMode(PlayerMode.mediaPlayer);
+        } else {
+          // Low latency mode improves short sound effects on Android.
+          await player.setPlayerMode(PlayerMode.lowLatency);
+        }
         await player.setSource(AssetSource('sounds/${effect.file}'));
         await player.setVolume(effect.volume);
         if (_disposed) {
@@ -71,9 +75,16 @@ class SoundController {
     try {
       final player = await _playerFor(effect);
       if (player == null) return;
-      await player.stop();
-      await player.seek(Duration.zero);
-      await player.resume();
+      if (effect == SoundEffect.diceRoll) {
+        await player.play(
+          AssetSource('sounds/${effect.file}'),
+          volume: effect.volume,
+        );
+      } else {
+        await player.stop();
+        await player.seek(Duration.zero);
+        await player.resume();
+      }
     } catch (_) {
       // Swallow audio errors on purpose.
     }

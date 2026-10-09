@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 import 'dart:math' as math;
 
@@ -348,7 +349,7 @@ class GameController extends Notifier<GameUiState> {
       openingBlackDie: null,
     );
 
-    await _sound.play(SoundEffect.diceRoll);
+    unawaited(_sound.play(SoundEffect.diceRoll));
     await Future<void>.delayed(_timings.openingRollAnimation);
     if (_epoch != myEpoch) return;
 
@@ -411,7 +412,7 @@ class GameController extends Notifier<GameUiState> {
       banner: null,
     );
 
-    await _sound.play(SoundEffect.diceRoll);
+    unawaited(_sound.play(SoundEffect.diceRoll));
     await Future<void>.delayed(_timings.diceRollAnimation);
     if (_epoch != myEpoch || state.paused) {
       if (_epoch == myEpoch) {
