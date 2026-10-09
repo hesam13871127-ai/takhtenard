@@ -156,7 +156,6 @@ class GameUiState {
     this.banner,
     this.bannerRevision = 0,
     this.paused = false,
-    this.manualFlip = false,
   });
 
   final GameConfig config;
@@ -191,9 +190,6 @@ class GameUiState {
 
   final bool paused;
 
-  /// Session-local "flip the board for me" override.
-  final bool manualFlip;
-
   GameUiState copyWith({
     GameConfig? config,
     TakhtehGame? game,
@@ -210,7 +206,6 @@ class GameUiState {
     Object? banner = _sentinel,
     int? bannerRevision,
     bool? paused,
-    bool? manualFlip,
   }) =>
       GameUiState(
         config: config ?? this.config,
@@ -234,7 +229,6 @@ class GameUiState {
         banner: banner == _sentinel ? this.banner : banner as String?,
         bannerRevision: bannerRevision ?? this.bannerRevision,
         paused: paused ?? this.paused,
-        manualFlip: manualFlip ?? this.manualFlip,
       );
 
   static const Object _sentinel = Object();
@@ -264,6 +258,7 @@ class GameUiState {
 class GameController extends Notifier<GameUiState> {
   int _epoch = 0;
   bool _aiBusy = false;
+  bool _movePathBusy = false;
   late math.Random _rng;
 
   @override
@@ -293,6 +288,7 @@ class GameController extends Notifier<GameUiState> {
   void startGame(GameConfig config, {MatchScore carryScore = const MatchScore()}) {
     _epoch++;
     _aiBusy = false;
+    _movePathBusy = false;
     final game = TakhtehGame(config: config);
     state = GameUiState(
       config: config,
@@ -313,6 +309,7 @@ class GameController extends Notifier<GameUiState> {
     if (saved == null) return false;
     _epoch++;
     _aiBusy = false;
+    _movePathBusy = false;
     state = GameUiState(
       config: saved.config,
       game: saved.game,
@@ -445,7 +442,11 @@ class GameController extends Notifier<GameUiState> {
 
   /// Selects (or deselects) a checker as the move origin.
   void selectChecker(int? from) {
-    if (state.game.phase != GamePhase.awaitingMove || state.aiOnTurn) return;
+    if (state.game.phase != GamePhase.awaitingMove ||
+        state.aiOnTurn ||
+        _movePathBusy) {
+      return;
+    }
     if (from != null && !state.legal.selectableFroms.contains(from)) return;
     state = state.copyWith(selectedFrom: from);
     if (from != null) _sound.play(SoundEffect.click);
@@ -454,15 +455,42 @@ class GameController extends Notifier<GameUiState> {
   /// Plays the legal one-or-more-die path the user tapped or dragged:
   /// [from] -> [to]. Illegal destinations simply do nothing.
   void playMove(int from, int to) {
-    if (state.game.phase != GamePhase.awaitingMove || state.aiOnTurn) return;
+    if (state.game.phase != GamePhase.awaitingMove ||
+        state.aiOnTurn ||
+        _movePathBusy) {
+      return;
+    }
     final path = state.legal.pathTo(from, to);
     if (path == null) return;
-    for (final move in path) {
-      if (state.game.phase != GamePhase.awaitingMove ||
-          !state.legal.firstMoves.contains(move)) {
-        return;
+    if (path.length == 1) {
+      if (state.legal.firstMoves.contains(path.single)) {
+        _applyMove(path.single);
       }
-      _applyMove(move);
+      return;
+    }
+    _movePathBusy = true;
+    _fireAndForget(_playMovePath(path, _epoch));
+  }
+
+  Future<void> _playMovePath(List<SingleMove> path, int epoch) async {
+    try {
+      for (var i = 0; i < path.length; i++) {
+        final move = path[i];
+        if (epoch != _epoch ||
+            state.paused ||
+            state.game.phase != GamePhase.awaitingMove ||
+            state.aiOnTurn ||
+            !state.legal.firstMoves.contains(move)) {
+          return;
+        }
+        _applyMove(move);
+        if (i < path.length - 1) {
+          await Future<void>.delayed(const Duration(milliseconds: 340));
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+        }
+      }
+    } finally {
+      if (epoch == _epoch) _movePathBusy = false;
     }
   }
 
@@ -471,6 +499,7 @@ class GameController extends Notifier<GameUiState> {
     final game = state.game;
     if (game.phase != GamePhase.awaitingMove ||
         state.aiOnTurn ||
+        _movePathBusy ||
         !game.canUndo) {
       return;
     }
@@ -493,11 +522,6 @@ class GameController extends Notifier<GameUiState> {
     if (!value) {
       _fireAndForget(_maybeRunAi());
     }
-  }
-
-  void toggleManualFlip() {
-    state = state.copyWith(manualFlip: !state.manualFlip);
-    _sound.play(SoundEffect.click);
   }
 
   // ------------------------------------------------------------ internals

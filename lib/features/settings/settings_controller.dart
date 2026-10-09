@@ -18,15 +18,11 @@ class SettingsState {
     required this.soundOn,
     required this.defaultDifficulty,
     required this.boardThemeId,
-    required this.flipBoardForBlack,
   });
 
   final bool soundOn;
   final AiDifficulty defaultDifficulty;
   final String boardThemeId;
-
-  /// In two-player mode, rotate the board towards the player on turn.
-  final bool flipBoardForBlack;
 
   BoardThemeData get boardTheme => BoardThemeData.byId(boardThemeId);
 
@@ -34,13 +30,11 @@ class SettingsState {
     bool? soundOn,
     AiDifficulty? defaultDifficulty,
     String? boardThemeId,
-    bool? flipBoardForBlack,
   }) =>
       SettingsState(
         soundOn: soundOn ?? this.soundOn,
         defaultDifficulty: defaultDifficulty ?? this.defaultDifficulty,
         boardThemeId: boardThemeId ?? this.boardThemeId,
-        flipBoardForBlack: flipBoardForBlack ?? this.flipBoardForBlack,
       );
 }
 
@@ -49,7 +43,6 @@ class SettingsController extends Notifier<SettingsState> {
   static const _kSoundOn = 'settings.soundOn';
   static const _kDifficulty = 'settings.difficulty';
   static const _kBoardTheme = 'settings.boardTheme';
-  static const _kFlipForBlack = 'settings.flipBoardForBlack';
 
   @override
   SettingsState build() {
@@ -61,7 +54,6 @@ class SettingsController extends Notifier<SettingsState> {
         orElse: () => AiDifficulty.medium,
       ),
       boardThemeId: prefs.getString(_kBoardTheme) ?? BoardThemeData.classic.id,
-      flipBoardForBlack: prefs.getBool(_kFlipForBlack) ?? true,
     );
   }
 
@@ -82,10 +74,6 @@ class SettingsController extends Notifier<SettingsState> {
     await _prefs.setString(_kBoardTheme, id);
   }
 
-  Future<void> setFlipBoardForBlack(bool value) async {
-    state = state.copyWith(flipBoardForBlack: value);
-    await _prefs.setBool(_kFlipForBlack, value);
-  }
 }
 
 final NotifierProvider<SettingsController, SettingsState>

@@ -46,7 +46,8 @@ class SoundController {
       final player = AudioPlayer(playerId: 'takhtenard_${effect.name}');
       try {
         await player.setReleaseMode(ReleaseMode.stop);
-        if (effect == SoundEffect.diceRoll) {
+        if (effect == SoundEffect.diceRoll ||
+            effect == SoundEffect.pieceMove) {
           await player.setPlayerMode(PlayerMode.mediaPlayer);
         } else {
           // Low latency mode improves short sound effects on Android.
@@ -75,7 +76,8 @@ class SoundController {
     try {
       final player = await _playerFor(effect);
       if (player == null) return;
-      if (effect == SoundEffect.diceRoll) {
+      if (effect == SoundEffect.diceRoll ||
+          effect == SoundEffect.pieceMove) {
         await player.play(
           AssetSource('sounds/${effect.file}'),
           volume: effect.volume,

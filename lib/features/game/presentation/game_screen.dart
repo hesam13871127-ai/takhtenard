@@ -553,7 +553,6 @@ class _ControlsBar extends ConsumerWidget {
         !ui.openingResultPending;
     final isOpening = ui.game.phase == GamePhase.openingRoll &&
         !ui.openingResultPending;
-    final isLocal = ui.config.mode == GameMode.localMultiplayer;
 
     Widget center;
     if (isOpening) {
@@ -636,12 +635,6 @@ class _ControlsBar extends ConsumerWidget {
           sound.enabled = !settings.soundOn;
         },
       ),
-      if (isLocal)
-        LuxuryIconButton(
-          icon: Icons.screen_rotation_alt_outlined,
-          tooltip: AppStrings.flipBoard,
-          onPressed: controller.toggleManualFlip,
-        ),
     ];
 
     return SafeArea(

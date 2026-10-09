@@ -80,17 +80,6 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
 
-              // ------------------------------------------------- flip
-              _SettingsCard(
-                icon: Icons.screen_rotation_alt_outlined,
-                title: AppStrings.flipForBlack,
-                subtitle: AppStrings.flipForBlackDesc,
-                child: _LuxurySwitch(
-                  value: settings.flipBoardForBlack,
-                  onChanged: controller.setFlipBoardForBlack,
-                ),
-              ),
-
               // ------------------------------------------------ about
               _SettingsCard(
                 icon: Icons.info_outline,

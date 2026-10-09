@@ -10,7 +10,6 @@ import '../../../core/theme/board_themes.dart';
 import '../../../core/utils/persian_digits.dart';
 import '../application/game_controller.dart';
 import '../domain/engine/takhteh_game.dart';
-import '../domain/models/game_config.dart';
 import '../domain/models/player.dart';
 import '../domain/models/single_move.dart';
 import '../../settings/settings_controller.dart';
@@ -260,15 +259,11 @@ class _BoardViewState extends ConsumerState<BoardView> {
     _syncTokens(ui);
 
     final theme = settings.boardTheme;
-    final flipped = ui.manualFlip ||
-        (settings.flipBoardForBlack &&
-            ui.config.mode == GameMode.localMultiplayer &&
-            ui.game.current == Player.black);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final boardSize = Size(constraints.maxWidth, constraints.maxHeight);
-        final geometry = BoardGeometry(size: boardSize, flipped: flipped);
+        final geometry = BoardGeometry(size: boardSize);
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -291,7 +286,6 @@ class _BoardViewState extends ConsumerState<BoardView> {
                     painter: BoardPainter(
                       theme: theme,
                       woodTexture: _woodTexture,
-                      flipped: flipped,
                     ),
                   ),
                 ),
@@ -358,7 +352,10 @@ class _BoardViewState extends ConsumerState<BoardView> {
         rect = Rect.fromCenter(center: center, width: d, height: d);
 
         final isMovable =
-            movable && selectable.contains(token.location) && _isTopOfStack(token);
+            movable &&
+            selectable.contains(token.location) &&
+            (ui.selectedFrom == null || ui.selectedFrom == token.location) &&
+            _isTopOfStack(token);
         final isSelected = ui.selectedFrom == token.location && isMovable;
 
         Widget faceWidget = CheckerFace(
@@ -435,7 +432,10 @@ class _BoardViewState extends ConsumerState<BoardView> {
           ? geometry.barCheckerCenter(first.player, index)
           : geometry.checkerCenter(first.location, index);
       final badgeSize = geometry.checkerDiameter * 0.82;
-      final isMovable = movable && selectable.contains(first.location);
+      final isMovable =
+          movable &&
+          selectable.contains(first.location) &&
+          (ui.selectedFrom == null || ui.selectedFrom == first.location);
       final isSelected = ui.selectedFrom == first.location && isMovable;
       widgets.add(
         Positioned(
@@ -540,27 +540,22 @@ class _BoardViewState extends ConsumerState<BoardView> {
     BoardGeometry geometry,
     BoardThemeData theme,
   ) {
-    if (ui.game.phase != GamePhase.awaitingMove || ui.aiOnTurn) {
+    final selectedFrom = ui.selectedFrom;
+    if (ui.game.phase != GamePhase.awaitingMove ||
+        ui.aiOnTurn ||
+        selectedFrom == null) {
       return const <Widget>[];
     }
 
     final pathsByDestination = <int, List<SingleMove>>{};
     final hitDestinations = <int>{};
-    final selectedFrom = ui.selectedFrom;
-    if (selectedFrom == null) {
-      for (final move in ui.legal.firstMoves) {
-        pathsByDestination.putIfAbsent(move.to, () => [move]);
-        if (move.hits) hitDestinations.add(move.to);
+    for (final path in ui.legal.movePathsFrom(selectedFrom)) {
+      final destination = path.last.to;
+      final current = pathsByDestination[destination];
+      if (current == null || path.length < current.length) {
+        pathsByDestination[destination] = path;
       }
-    } else {
-      for (final path in ui.legal.movePathsFrom(selectedFrom)) {
-        final destination = path.last.to;
-        final current = pathsByDestination[destination];
-        if (current == null || path.length < current.length) {
-          pathsByDestination[destination] = path;
-        }
-        if (path.last.hits) hitDestinations.add(destination);
-      }
+      if (path.last.hits) hitDestinations.add(destination);
     }
 
     final widgets = <Widget>[];
@@ -832,15 +827,24 @@ class _BoardViewState extends ConsumerState<BoardView> {
     final hit = geometry.hitTest(local);
     final location = _locationFromHit(hit, ui);
     if (location == null) return;
-    if (!ui.legal.selectableFroms.contains(location)) return;
+    final selectedFrom = ui.selectedFrom;
+    final isSelectedDestination = selectedFrom != null &&
+        ui.legal.pathTo(selectedFrom, location) != null;
+    final from = isSelectedDestination ? selectedFrom : location;
+    if (!isSelectedDestination &&
+        !ui.legal.selectableFroms.contains(location)) {
+      return;
+    }
 
     setState(() {
-      _dragFrom = location;
+      _dragFrom = from;
       _dragPlayer = ui.game.current;
       _dragPointer = local;
       _dragHopKey++;
     });
-    ref.read(gameControllerProvider.notifier).selectChecker(location);
+    if (!isSelectedDestination) {
+      ref.read(gameControllerProvider.notifier).selectChecker(from);
+    }
   }
 
   void _handleDragUpdate(Offset local) {
