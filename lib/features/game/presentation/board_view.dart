@@ -47,7 +47,9 @@ class _CheckerToken {
 /// Illegal moves are structurally impossible: only destinations offered by
 /// the rules engine respond to input.
 class BoardView extends ConsumerStatefulWidget {
-  const BoardView({super.key});
+  const BoardView({super.key, this.rollOnDiceTap = false});
+
+  final bool rollOnDiceTap;
 
   @override
   ConsumerState<BoardView> createState() => _BoardViewState();
@@ -684,11 +686,24 @@ class _BoardViewState extends ConsumerState<BoardView> {
       return _buildOpeningDice(ui, centers, values, geometry);
     }
 
-    if (game.dice == null && !ui.diceRolling) return const SizedBox.shrink();
+    final canRollByTapping = widget.rollOnDiceTap &&
+        game.phase == GamePhase.awaitingRoll &&
+        !ui.aiOnTurn &&
+        !ui.diceRolling &&
+        !ui.openingResultPending;
+    if (game.dice == null && !ui.diceRolling && !canRollByTapping) {
+      return const SizedBox.shrink();
+    }
 
     final centers = geometry.diceCenters();
-    final values = ui.diceRolling ? const [1, 1] : game.dice!.moves;
-    final remaining = ui.diceRolling ? const <int>[] : game.remaining;
+    final values = ui.diceRolling
+        ? const [1, 1]
+        : game.dice?.moves ?? const [1, 1];
+    final remaining = ui.diceRolling
+        ? const <int>[]
+        : game.dice == null
+            ? values
+            : game.remaining;
     final displayDieSize =
         geometry.diceSize * (values.length == 4 ? 0.8 : 1);
 
@@ -770,13 +785,18 @@ class _BoardViewState extends ConsumerState<BoardView> {
     if (ui.game.phase == GamePhase.openingRoll &&
         !ui.openingRolling &&
         !ui.openingResultPending) {
-      controller.rollOpening();
+      if (!widget.rollOnDiceTap || _isOpeningDiceTap(local, geometry)) {
+        controller.rollOpening();
+      }
       return;
     }
     if (ui.game.phase == GamePhase.awaitingRoll &&
         !ui.aiOnTurn &&
         !ui.diceRolling) {
-      controller.rollDice();
+      if (!widget.rollOnDiceTap ||
+          (!ui.openingResultPending && _isTurnDiceTap(local, geometry))) {
+        controller.rollDice();
+      }
       return;
     }
     if (ui.game.phase != GamePhase.awaitingMove || ui.aiOnTurn) return;
@@ -809,6 +829,28 @@ class _BoardViewState extends ConsumerState<BoardView> {
     } else {
       controller.selectChecker(null);
     }
+  }
+
+  bool _isOpeningDiceTap(Offset local, BoardGeometry geometry) {
+    return geometry.diceCenters().any(
+      (center) => geometry
+          .diceRect(center)
+          .inflate(geometry.diceSize * 0.15)
+          .contains(local),
+    );
+  }
+
+  bool _isTurnDiceTap(Offset local, BoardGeometry geometry) {
+    final centers = geometry.diceCenters();
+    final center = Offset(
+      (centers[0].dx + centers[1].dx) / 2,
+      centers[0].dy,
+    );
+    return Rect.fromCenter(
+      center: center,
+      width: geometry.diceSize * 2.42 * 1.35,
+      height: geometry.diceSize * 1.35,
+    ).contains(local);
   }
 
   int? _locationFromHit(BoardHit hit, GameUiState ui) {

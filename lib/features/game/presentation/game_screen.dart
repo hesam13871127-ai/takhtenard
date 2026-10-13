@@ -208,7 +208,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isLandscape = constraints.maxWidth > constraints.maxHeight;
-              final board = _buildBoard(context, ui);
+              final isExpandedLayout =
+                  isLandscape || constraints.maxWidth >= 720;
+              final board = _buildBoard(
+                context,
+                ui,
+                fillAvailable: isExpandedLayout,
+                rollOnDiceTap: isExpandedLayout,
+              );
               final hudTop = _PlayerPanel(
                 player: Player.black,
                 name: _playerName(ui, Player.black),
@@ -230,31 +237,34 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               );
 
               if (isLandscape) {
-                final sidebarWidth = (constraints.maxWidth * 0.36)
-                    .clamp(180.0, 300.0)
-                    .toDouble();
-                return Row(
+                return Column(
                   children: [
+                    Row(
+                      children: [
+                        Expanded(child: hudTop),
+                        Expanded(child: hudBottom),
+                      ],
+                    ),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.all(8),
                         child: board,
                       ),
                     ),
-                    SizedBox(
-                      width: sidebarWidth,
-                      child: Column(
-                        children: [
-                          hudTop,
-                          Expanded(
-                            child: Center(
-                              child: SingleChildScrollView(child: controls),
-                            ),
-                          ),
-                          hudBottom,
-                        ],
+                  ],
+                );
+              }
+              if (isExpandedLayout) {
+                return Column(
+                  children: [
+                    hudTop,
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: board,
                       ),
                     ),
+                    hudBottom,
                   ],
                 );
               }
@@ -294,9 +304,23 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     );
   }
 
-  Widget _buildBoard(BuildContext context, GameUiState ui) {
+  Widget _buildBoard(
+    BuildContext context,
+    GameUiState ui, {
+    bool fillAvailable = false,
+    bool rollOnDiceTap = false,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final board = Stack(
+          children: [
+            BoardView(rollOnDiceTap: rollOnDiceTap),
+            _buildBannerOverlay(ui),
+            _buildOpeningOverlay(ui),
+          ],
+        );
+        if (fillAvailable) return SizedBox.expand(child: board);
+
         // The classic board proportions: a bit wider than tall.
         const aspect = 1 / 0.84;
         var width = constraints.maxWidth;
@@ -309,13 +333,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           child: SizedBox(
             width: width,
             height: height,
-            child: Stack(
-              children: [
-                const BoardView(),
-                _buildBannerOverlay(ui),
-                _buildOpeningOverlay(ui),
-              ],
-            ),
+            child: board,
           ),
         );
       },
