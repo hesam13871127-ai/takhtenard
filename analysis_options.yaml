@@ -5,6 +5,11 @@ analyzer:
     - 'android/**'
     - 'ios/**'
     - 'tool/**'
+    - build/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 linter:
   rules:

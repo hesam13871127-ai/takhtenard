@@ -22,16 +22,3 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-
-
-subprojects {
-    project.buildscript {
-        configurations.all {
-            resolutionStrategy.eachDependency {
-                if (requested.group == "com.android.tools.build" && requested.name == "gradle") {
-                    useVersion("8.7.3") // یا نسخه‌ای که پروژه‌ات استفاده می‌کند
-                }
-            }
-        }
-    }
-}
