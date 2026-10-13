@@ -8,7 +8,6 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/utils/persian_digits.dart';
 import '../../../shared/widgets/app_background.dart';
 import '../../../shared/widgets/luxury_button.dart';
-import '../../game/application/game_controller.dart';
 import '../../game/domain/models/game_config.dart';
 import '../../game/presentation/game_screen.dart';
 import '../../rules/presentation/rules_screen.dart';
@@ -25,19 +24,12 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   late AiDifficulty _difficulty;
-  bool _hasSave = false;
 
   @override
   void initState() {
     super.initState();
     // Start from the saved default; a tap on a card overrides it locally.
     _difficulty = ref.read(settingsProvider).defaultDifficulty;
-    _refreshSaveState();
-  }
-
-  Future<void> _refreshSaveState() async {
-    final has = await ref.read(gameControllerProvider.notifier).hasSavedGame();
-    if (mounted) setState(() => _hasSave = has);
   }
 
   void _startVsAi() {
@@ -91,15 +83,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(height: 8),
                   _buildHeader(),
                   const SizedBox(height: 26),
-                  if (_hasSave) ...[
-                    LuxuryButton(
-                      label: AppStrings.continueGame,
-                      icon: Icons.play_circle_fill,
-                      small: true,
-                      onPressed: _continueGame,
-                    ),
-                    const SizedBox(height: 14),
-                  ],
+                  LuxuryButton(
+                    label: AppStrings.continueGame,
+                    icon: Icons.play_circle_fill,
+                    small: true,
+                    onPressed: _continueGame,
+                  ),
+                  const SizedBox(height: 14),
                   LuxuryButton(
                     label: AppStrings.playVsAi,
                     icon: Icons.smart_toy_outlined,

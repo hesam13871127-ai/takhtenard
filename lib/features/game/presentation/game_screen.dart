@@ -319,11 +319,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             _buildOpeningOverlay(ui),
           ],
         );
+        if (fillAvailable) return SizedBox.expand(child: board);
+
         // The classic board proportions: a bit wider than tall.
-        final aspect = fillAvailable &&
-                constraints.maxWidth > constraints.maxHeight
-            ? 1.5
-            : 1 / 0.84;
+        const aspect = 1 / 0.84;
         var width = constraints.maxWidth;
         var height = width / aspect;
         if (height > constraints.maxHeight) {
